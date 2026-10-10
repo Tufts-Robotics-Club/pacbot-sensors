@@ -1,0 +1,15 @@
+# Python virtual environments and cache
+**/.venv/
+**/__pycache__/
+*.py[cod]
+
+# PlatformIO build files
+**/.pio/
+
+# Local credentials
+**/secrets.h
+.env
+.env.*
+
+# macOS
+.DS_Store
