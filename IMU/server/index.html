@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICM-20948 IMU</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --panel: #fff; --text: #1c2026; --muted: #6b7280; --grid: #e3e6ea;
+    --x: #d9363e; --y: #1f9d55; --z: #2b6cb0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1d2128; --text: #e6e8eb; --muted: #9099a6; --grid: #2c323b;
+      --x: #ff6b70; --y: #4cd08a; --z: #63a4ff;
+    }
+  }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+         font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; margin-bottom: 16px; }
+  h1 { font-size: 18px; margin: 0; }
+  #status, #rate { color: var(--muted); }
+  .panels { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .panel { background: var(--panel); border-radius: 8px; padding: 12px 16px; }
+  .panel h2 { font-size: 14px; margin: 0 0 8px; }
+  .panel h2 span { color: var(--muted); font-weight: normal; }
+  .values { display: flex; gap: 16px; font: 16px ui-monospace, Consolas, monospace; margin-bottom: 8px; }
+  .values div { flex: 1; white-space: nowrap; }
+  .x { color: var(--x); } .y { color: var(--y); } .z { color: var(--z); }
+  canvas { display: block; width: 100%; height: 160px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ICM-20948 IMU</h1>
+  <span id="status">Connecting to server...</span>
+  <span id="rate"></span>
+  <span id="temp"></span>
+</header>
+
+<div class="panels">
+  <section class="panel" data-key="a" data-digits="0">
+    <h2>Accelerometer <span>mg</span></h2>
+    <div class="values"><div class="x">X –</div><div class="y">Y –</div><div class="z">Z –</div></div>
+    <canvas></canvas>
+  </section>
+  <section class="panel" data-key="g" data-digits="1">
+    <h2>Gyroscope <span>°/s</span></h2>
+    <div class="values"><div class="x">X –</div><div class="y">Y –</div><div class="z">Z –</div></div>
+    <canvas></canvas>
+  </section>
+  <section class="panel" data-key="m" data-digits="1">
+    <h2>Magnetometer <span>µT</span></h2>
+    <div class="values"><div class="x">X –</div><div class="y">Y –</div><div class="z">Z –</div></div>
+    <canvas></canvas>
+  </section>
+</div>
+
+<script>
+const HISTORY = 300;  // samples kept per chart (~6 s at 50 Hz)
+const AXES = ["x", "y", "z"];
+
+const panels = [...document.querySelectorAll(".panel")].map(el => ({
+  key: el.dataset.key,
+  digits: Number(el.dataset.digits),
+  cells: [...el.querySelectorAll(".values div")],
+  canvas: el.querySelector("canvas"),
+  history: [],
+}));
+
+const statusEl = document.getElementById("status");
+const rateEl = document.getElementById("rate");
+const tempEl = document.getElementById("temp");
+
+let latest = null;
+let dirty = false;
+let sampleCount = 0;
+
+function draw(panel) {
+  const canvas = panel.canvas;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const style = getComputedStyle(document.documentElement);
+  const data = panel.history;
+  if (data.length < 2) return;
+
+  let min = Infinity, max = -Infinity;
+  for (const v of data) for (const n of v) { if (n < min) min = n; if (n > max) max = n; }
+  const pad = Math.max((max - min) * 0.1, 1);
+  min -= pad; max += pad;
+  const yOf = n => h - (n - min) / (max - min) * h;
+
+  // Zero line and range labels.
+  ctx.strokeStyle = style.getPropertyValue("--grid");
+  ctx.lineWidth = 1;
+  if (min < 0 && max > 0) {
+    ctx.beginPath(); ctx.moveTo(0, yOf(0)); ctx.lineTo(w, yOf(0)); ctx.stroke();
+  }
+  ctx.fillStyle = style.getPropertyValue("--muted");
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textBaseline = "top";    ctx.fillText(max.toFixed(0), 2, 2);
+  ctx.textBaseline = "bottom"; ctx.fillText(min.toFixed(0), 2, h - 2);
+
+  ctx.lineWidth = 1.5;
+  AXES.forEach((axis, i) => {
+    ctx.strokeStyle = style.getPropertyValue("--" + axis);
+    ctx.beginPath();
+    data.forEach((v, j) => {
+      const x = j / (HISTORY - 1) * w;
+      if (j === 0) ctx.moveTo(x, yOf(v[i])); else ctx.lineTo(x, yOf(v[i]));
+    });
+    ctx.stroke();
+  });
+}
+
+function render() {
+  requestAnimationFrame(render);
+  if (!dirty) return;
+  dirty = false;
+  for (const panel of panels) {
+    panel.cells.forEach((cell, i) => {
+      cell.textContent = AXES[i].toUpperCase() + " " +
+        latest[panel.key][i].toFixed(panel.digits).padStart(8);
+    });
+    draw(panel);
+  }
+  tempEl.textContent = latest.temp.toFixed(1) + " °C";
+}
+requestAnimationFrame(render);
+
+setInterval(() => {
+  rateEl.textContent = sampleCount + " Hz";
+  sampleCount = 0;
+}, 1000);
+
+const events = new EventSource("/events");
+events.addEventListener("imu", e => {
+  latest = JSON.parse(e.data);
+  for (const panel of panels) {
+    panel.history.push(latest[panel.key]);
+    if (panel.history.length > HISTORY) panel.history.shift();
+  }
+  sampleCount++;
+  dirty = true;
+});
+events.addEventListener("status", e => { statusEl.textContent = JSON.parse(e.data); });
+events.onerror = () => { statusEl.textContent = "Lost connection to server.py, retrying..."; };
+</script>
+</body>
+</html>
