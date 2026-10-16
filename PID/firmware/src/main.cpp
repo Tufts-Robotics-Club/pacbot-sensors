@@ -110,11 +110,15 @@ void calibrateGyro() {
     float sum = 0;
     int n = 0;
     uint32_t start = millis();
-    while (millis() - start < 1000) {
+    while (millis() - start < 1500) {
         if (imu.dataReady()) {
             imu.getAGMT();
-            sum += imu.gyrZ();
-            n++;
+            // Skip the first 500 ms: right after power-on and configuration
+            // the gyro reads tens of deg/s off.
+            if (millis() - start >= 500) {
+                sum += imu.gyrZ();
+                n++;
+            }
         }
         delay(5);
     }
