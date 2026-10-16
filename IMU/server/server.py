@@ -24,6 +24,10 @@ clients = set()
 clients_lock = threading.Lock()
 last_status = "Starting..."
 
+# The open serial port, so browser commands can be written to the ESP32.
+serial_port = None
+serial_lock = threading.Lock()
+
 
 def broadcast(event, data):
     message = sse(event, data)
@@ -65,8 +69,21 @@ def open_serial(port_name):
     return ser
 
 
+def send_command(command):
+    """Write one command line to the ESP32. Returns False if it isn't connected."""
+    with serial_lock:
+        if serial_port is None:
+            return False
+        try:
+            serial_port.write((command + "\n").encode())
+        except serial.SerialException:
+            return False
+    return True
+
+
 def read_serial(port_name):
     """Forward lines from the ESP32 to all connected browsers, reconnecting forever."""
+    global serial_port
     waiting = False
     while True:
         name = port_name or find_port()
@@ -80,6 +97,8 @@ def read_serial(port_name):
 
         try:
             with open_serial(name) as ser:
+                with serial_lock:
+                    serial_port = ser
                 set_status(f"Reading from {name}")
                 ser.readline()  # discard the first line, we likely joined mid-line
                 while True:
@@ -94,10 +113,16 @@ def read_serial(port_name):
                         broadcast("imu", line)
                     else:
                         # Status messages from the firmware and ESP32 boot output.
-                        set_status(f"ESP32: {line.lstrip('# ')}")
+                        message = line.lstrip("# ")
+                        set_status(f"ESP32: {message}")
+                        if line.startswith("#"):
+                            broadcast("log", json.dumps(message))
         except serial.SerialException as e:
             set_status(f"Serial error on {name}: {e}")
             time.sleep(1)
+        finally:
+            with serial_lock:
+                serial_port = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -108,6 +133,30 @@ class Handler(BaseHTTPRequestHandler):
             self.send_events()
         else:
             self.send_error(404)
+
+    def do_POST(self):
+        if self.path != "/command":
+            self.send_error(404)
+            return
+        # Requiring JSON makes browsers send a CORS preflight, which this server
+        # doesn't answer, so other websites can't send commands to the ESP32.
+        if self.headers.get("Content-Type") != "application/json":
+            self.send_error(415)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            command = json.loads(self.rfile.read(length))["command"]
+        except (ValueError, KeyError, TypeError):
+            self.send_error(400)
+            return
+        if not isinstance(command, str) or not command.isprintable() or len(command) > 60:
+            self.send_error(400)
+            return
+        if not send_command(command):
+            self.send_error(503, "ESP32 not connected")
+            return
+        self.send_response(204)
+        self.end_headers()
 
     def send_index(self):
         with open(INDEX_HTML, "rb") as f:

@@ -42,3 +42,5 @@ python server.py
 ```
 
 Open http://localhost:8000. The serial port is auto-detected; pass `--port COM5` to pick one. Set `IMU_PORT` to change the web port.
+
+The page also works with the PID firmware in `../PID`: it detects which firmware is sending data and switches to a PID view with controls that send commands to the ESP32.
