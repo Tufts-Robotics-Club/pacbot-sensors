@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
@@ -11,10 +12,18 @@ void onWebSocketEvent(
     size_t length
 ) {
     switch (type) {
-        case WStype_CONNECTED:
-            Serial.println("Connected to server!");
-            webSocket.sendTXT("Hello from ESP32!");
+        case WStype_CONNECTED: {
+            Serial.println("Connected to WebSocket server!");
+
+            // Register this ESP32 as bot client ID "1".
+            const char* registration =
+                R"({"type":"register","client_id":"1","role":"bot"})";
+
+            webSocket.sendTXT(registration);
+            Serial.println("Sent bot registration");
+
             break;
+        }
 
         case WStype_DISCONNECTED:
             Serial.println("Disconnected from server");
@@ -41,7 +50,7 @@ void setup() {
         Serial.println("Connecting to Wi-Fi...");
     }
 
-    Serial.print("Connected to ");
+    Serial.print("Connected to Wi-Fi: ");
     Serial.println(WIFI_SSID);
 
     Serial.print("ESP32 IP: ");
