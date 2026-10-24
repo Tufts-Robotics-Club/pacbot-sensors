@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from server.messages import RegistrationMessage
+from server.messages import RegistrationRequestMessage, RegistrationResponseMessage
 
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
@@ -29,7 +29,7 @@ async def handle_connection(websocket):
 
     try:
         # Parse registration message
-        registration = RegistrationMessage.from_json(raw_message)
+        registration = RegistrationRequestMessage.from_json(raw_message)
 
         # Capture client ID and role
         client_id = registration.client_id
@@ -54,6 +54,14 @@ async def handle_connection(websocket):
         # Register the client
         connected_clients[client_id] = websocket
         print(f"Client {client_id} ({role}) connected")
+
+        # Inform client of successful registration
+        response = RegistrationResponseMessage(
+            success=True,
+            message="Registration successful",
+        )
+
+        await websocket.send(response.to_json())
 
         # Keep handling messages until disconnection
         async for raw in websocket:
