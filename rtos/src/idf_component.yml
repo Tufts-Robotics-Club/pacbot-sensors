@@ -1,0 +1,4 @@
+dependencies:
+  espressif/bdc_motor: "^0.2.0"
+  espressif/pid_ctrl: "^0.1.1"
+  espressif/esp_websocket_client: "^1.8.0"

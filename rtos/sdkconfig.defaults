@@ -1,0 +1,37 @@
+# max cpu speed
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+# compiler picks faster code over smaller code
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+# read flash over 4 wires instead of 2
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+# flash clock 80 instead of 40 so cache misses get filled faster
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+# our board has 4MB, default was 2MB
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# 1 ms ticks instead of 10 ms
+CONFIG_FREERTOS_HZ=1000
+# rtos code lives in ram so it never waits on flash
+CONFIG_FREERTOS_IN_IRAM=y
+
+# all the wifi and network tasks stay on core 0 so core 1 is just the robot
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+CONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU0=y
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=y
+CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0=y
+
+# if motor_task stops checking in for 1 s the chip resets
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=1
+# core 0 being swamped with wifi shouldnt reboot the robot. core 1 is still watched
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+# checks if a task went past its stack
+CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
+# crashes the moment a task writes past its stack so we see exactly where
+CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y
+# print what crashed then reboot
+CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y
+
+# lets stats_task print cpu % for each task
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS=y
+CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
