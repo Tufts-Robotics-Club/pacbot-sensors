@@ -4,19 +4,19 @@
 #include <drive.h>
 //spencer was here
 
-// Left motor (the one wired up now)
-#define LEFT_PWM     25  // L293D pin 1 (1,2EN)
-#define LEFT_DIR1    26  // L293D pin 2 (1A)
-#define LEFT_DIR2    27  // L293D pin 7 (2A)
-#define LEFT_ENC_A   32  // C1
-#define LEFT_ENC_B   33  // C2
+// Right motor (the one wired up now)
+#define RIGHT_PWM     25  // L293D pin 1 (1,2EN)
+#define RIGHT_DIR1    26  // L293D pin 2 (1A)
+#define RIGHT_DIR2    27  // L293D pin 7 (2A)
+#define RIGHT_ENC_A   32  // C1
+#define RIGHT_ENC_B   33  // C2
 
-// Right motor (second half of the L293D). Avoids 21/22, which the IMU uses for I2C
-#define RIGHT_PWM    23  // L293D pin 9 (3,4EN)
-#define RIGHT_DIR1   19  // L293D pin 10 (3A)
-#define RIGHT_DIR2   18  // L293D pin 15 (4A)
-#define RIGHT_ENC_A  16  // C1
-#define RIGHT_ENC_B  17  // C2
+// Left motor (second half of the L293D). Avoids 21/22, which the IMU uses for I2C
+#define LEFT_PWM    23  // L293D pin 9 (3,4EN)
+#define LEFT_DIR1   19  // L293D pin 10 (3A)
+#define LEFT_DIR2   18  // L293D pin 15 (4A)
+#define LEFT_ENC_A  16  // C1
+#define LEFT_ENC_B  17  // C2
 
 // Pushbutton between this pin and GND; each press advances to the next state
 #define BUTTON_PIN   13
@@ -27,8 +27,10 @@ const float COUNTS_PER_REV = 2800.0f;
 
 const uint32_t PRINT_INTERVAL_MS = 200;
 
+//pivot cw goes forward
+
 // set reversed = true on a wheel if its count goes down when driving forward
-Encoder leftEnc(LEFT_ENC_A, LEFT_ENC_B);
+Encoder leftEnc(LEFT_ENC_A, LEFT_ENC_B, true);
 Encoder rightEnc(RIGHT_ENC_A, RIGHT_ENC_B);
 
 Pwm leftPwm(LEFT_PWM, 0);    // channel 0
@@ -82,7 +84,7 @@ void applyState(State state) {
   turning = false;
   Serial.printf("State %d: %s\n", state + 1, STATE_NAMES[state]);
 
-  switch (state) {
+  switch (state) { //left, right 0
   case FORWARD:    drive.setWheelSpeeds(DRIVE_SPEED, DRIVE_SPEED);   break;
   case BACKWARD:   drive.setWheelSpeeds(-DRIVE_SPEED, -DRIVE_SPEED); break;
   case PIVOTCW:    drive.setWheelSpeeds(PIVOT_SPEED, -PIVOT_SPEED);  break;
