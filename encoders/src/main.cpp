@@ -41,7 +41,7 @@ Drive drive(motors, leftEnc, rightEnc);
 // State speeds in counts/s, carried over from Blues Clues (tuned for 1440 counts/rev,
 // so the wheels turn about half as fast here)
 const int DRIVE_SPEED = 1800;
-const int PIVOT_SPEED = 100;
+const int PIVOT_SPEED = 1000;
 
 // fixed-radius turn settings
 const float TRACK_WIDTH = 16.0;   // cm, between wheel centres (Blues Clues chassis, update for the Pacbot)
