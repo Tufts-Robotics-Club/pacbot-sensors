@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "freertos/FreeRTOS.h"
@@ -12,6 +13,7 @@
 
 #include "config.h"
 #include "motor.h"
+#include "encoder.h"
 #include "tof.h"
 
 // size 1 so a new command replaces the old one
@@ -60,9 +62,24 @@ static void motor_timer_start(void)
     ESP_ERROR_CHECK(gptimer_start(timer));
 }
 
+// prints the encoder counts 5 times a second while were testing them
+// its own low priority task on core 0 so printing never slows down motor_task
+static void enc_print_task(void *arg)
+{
+    TickType_t last_wake = xTaskGetTickCount();
+    while (1) {
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(200));
+        printf("L: %ld  R: %ld\n", (long)encoder_count(ENC_LEFT), (long)encoder_count(ENC_RIGHT));
+    }
+}
+
 static void motor_task(void *arg)
 {
-    // set up the timer here so its interrupt runs on core 1 not the wifi core
+    // set up the encoders and timer here so their interrupts run on core 1 not the wifi core
+    encoder_start();
+    if (PRINT_ENC) {
+        xTaskCreatePinnedToCore(enc_print_task, "enc_print", STACK_STATS, NULL, PRIO_STATS, NULL, COMMS_CORE);
+    }
     motor_timer_start();
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
 

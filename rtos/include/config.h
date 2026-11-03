@@ -48,3 +48,13 @@
 #define MSG_LEN       128      // longest message to or from the computer (imu json is ~70)
 
 #define NUM_TOF       4        // one wall sensor per side
+
+// motor encoders, same pins as the arduino encoder test
+#define LEFT_ENC_A    16
+#define LEFT_ENC_B    17
+#define RIGHT_ENC_A   32
+#define RIGHT_ENC_B   33
+#define LEFT_ENC_REVERSED  0   // set to 1 on a wheel whose count goes down when it turns forward
+#define RIGHT_ENC_REVERSED 1
+
+#define PRINT_ENC     1        // prints encoder counts 5 times a second, set to 0 once its working
