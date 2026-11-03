@@ -10,10 +10,13 @@
 #include "esp_err.h"
 #include "esp_task_wdt.h"
 #include "driver/gptimer.h"
+#include "driver/gpio.h"
+#include "driver/ledc.h"
 
 #include "config.h"
 #include "motor.h"
 #include "encoder.h"
+#include "comms.h"
 #include "tof.h"
 
 // size 1 so a new command replaces the old one
@@ -21,10 +24,85 @@ static QueueHandle_t cmd_mailbox;
 
 static TaskHandle_t motor_task_handle;
 
-// real motor code goes here
+// one PWM channel per motor, indexed by ENC_LEFT / ENC_RIGHT
+static const int pwm_pins[2]  = {LEFT_PWM, RIGHT_PWM};
+static const int dir1_pins[2] = {LEFT_DIR1, RIGHT_DIR1};
+static const int dir2_pins[2] = {LEFT_DIR2, RIGHT_DIR2};
+static const ledc_channel_t pwm_channels[2] = {LEDC_CHANNEL_0, LEDC_CHANNEL_1};
+
+#define PWM_MAX 255   // 8 bit duty, same as the arduino version
+
+static void motor_pins_start(void)
+{
+    gpio_config_t dir_cfg = {
+        .pin_bit_mask = (1ULL << LEFT_DIR1) | (1ULL << LEFT_DIR2) | (1ULL << RIGHT_DIR1) | (1ULL << RIGHT_DIR2),
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    ESP_ERROR_CHECK(gpio_config(&dir_cfg));
+
+    ledc_timer_config_t timer_cfg = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .timer_num = LEDC_TIMER_0,
+        .freq_hz = MOTOR_PWM_HZ,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&timer_cfg));
+
+    for (int i = 0; i < 2; i++) {
+        ledc_channel_config_t ch_cfg = {
+            .gpio_num = pwm_pins[i],
+            .speed_mode = LEDC_LOW_SPEED_MODE,
+            .channel = pwm_channels[i],
+            .timer_sel = LEDC_TIMER_0,
+            .duty = 0,   // start stopped
+        };
+        ESP_ERROR_CHECK(ledc_channel_config(&ch_cfg));
+    }
+}
+
+// signed duty in percent, -100..100. negative = backward, 0 = coast
+static void set_motor(enc_side_t side, int duty)
+{
+    if (duty > 100) duty = 100;
+    if (duty < -100) duty = -100;
+
+    bool forward = duty >= 0;
+    gpio_set_level(dir1_pins[side], forward ? 0 : 1);
+    gpio_set_level(dir2_pins[side], forward ? 1 : 0);
+
+    int magnitude = forward ? duty : -duty;
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, pwm_channels[side], magnitude * PWM_MAX / 100);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, pwm_channels[side]);
+}
+
 static void motors_stop(void)
 {
-    // TODO
+    set_motor(ENC_LEFT, 0);
+    set_motor(ENC_RIGHT, 0);
+}
+
+// commands from console.py, same as the arduino version. one number = both wheels, two = left right
+//   d <duty%>   open loop duty, -100..100
+//   s or 0      stop
+static void handle_command(const char *cmd)
+{
+    char reply[MSG_LEN];
+    int left = 0, right = 0;
+    int n = sscanf(cmd + 1, "%d %d", &left, &right);
+    if (n == 1) right = left;
+
+    if (cmd[0] == 'd' && n >= 1) {
+        set_motor(ENC_LEFT, left);
+        set_motor(ENC_RIGHT, right);
+        snprintf(reply, sizeof(reply), "duty set to L=%d%% R=%d%%", left, right);
+    } else if (cmd[0] == 's' || cmd[0] == '0') {
+        motors_stop();
+        snprintf(reply, sizeof(reply), "stopped");
+    } else {
+        snprintf(reply, sizeof(reply), "unknown command: %.100s", cmd);
+    }
+    comms_send(reply);
 }
 
 // timer interrupt every 1 ms that wakes up motor_task
@@ -76,6 +154,7 @@ static void enc_print_task(void *arg)
 static void motor_task(void *arg)
 {
     // set up the encoders and timer here so their interrupts run on core 1 not the wifi core
+    motor_pins_start();
     encoder_start();
     if (PRINT_ENC) {
         xTaskCreatePinnedToCore(enc_print_task, "enc_print", STACK_STATS, NULL, PRIO_STATS, NULL, COMMS_CORE);
@@ -95,11 +174,9 @@ static void motor_task(void *arg)
 
         // receive takes it out of the mailbox so we never run the same command twice
         if (xQueueReceive(cmd_mailbox, cmd, 0) == pdTRUE) {
-            // TODO: figure out what to do with commands once we know what the ai sends
-            // reply with comms_send() if the computer needs an answer
+            // TODO: switch to whatever the ai sends once we know
+            handle_command(cmd);
         }
-
-        motors_stop();
     }
 }
 

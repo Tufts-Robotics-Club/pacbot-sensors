@@ -22,7 +22,7 @@
 
 // stack sizes are in bytes on the esp32 not words
 // sized off what stats_task measured plus room for the real sensor and motor code
-#define STACK_MOTOR   2048
+#define STACK_MOTOR   4096   // sscanf/snprintf for the motor commands need more than 2048
 #define STACK_TOF     3072
 #define STACK_IMU     3072
 #define STACK_REPLY   2048
@@ -48,6 +48,16 @@
 #define MSG_LEN       128      // longest message to or from the computer (imu json is ~70)
 
 #define NUM_TOF       4        // one wall sensor per side
+
+// motors on the L293D, same pins as the arduino encoder test
+// PWM goes to the enable pin, DIR1/DIR2 set direction (forward = DIR1 low, DIR2 high)
+#define LEFT_PWM      23   // L293D pin 9 (3,4EN)
+#define LEFT_DIR1     19   // L293D pin 10 (3A)
+#define LEFT_DIR2     18   // L293D pin 15 (4A)
+#define RIGHT_PWM     25   // L293D pin 1 (1,2EN)
+#define RIGHT_DIR1    26   // L293D pin 2 (1A)
+#define RIGHT_DIR2    27   // L293D pin 7 (2A)
+#define MOTOR_PWM_HZ  300  // same as the arduino version so the tuning still matches
 
 // motor encoders, same pins as the arduino encoder test
 #define LEFT_ENC_A    16
