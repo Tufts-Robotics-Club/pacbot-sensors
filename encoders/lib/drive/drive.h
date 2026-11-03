@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <motor.h>
-#include <encoder.h>
+#include <encoder.h> 
 
 //HOLDS each wheel at a target speed (encoder counts per second) by adjusting
 //the motor duty cycle with the encoders. Call update() every loop()
@@ -59,7 +59,7 @@ private:
     static constexpr unsigned long UPDATE_MS = 20;  // control loop runs at 50 Hz
     // PLACEHOLDERS for the N20 1:100 + L293D: measure MAX_SPEED with "d 100",
     // then retune KI (Blues Clues used 2000 and 0.05 for the Pololu motors)
-    static constexpr float MAX_SPEED = 9000.0f;     // counts/s at 100% duty
+    static constexpr float MAX_SPEED = 1900.0f;     // counts/s at 100% duty
     static constexpr float KI = 0.01f;              // duty % added per count of accumulated error
     static constexpr float MIN_DUTY = 40.0f;        // % where the motor starts turning (measured ~100/255)
 
