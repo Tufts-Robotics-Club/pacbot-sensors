@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from messages import RegistrationRequestMessage, RegistrationResponseMessage
+from logger import print_server_message
 
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
@@ -19,7 +20,7 @@ connected_clients = {}
 
 async def handle_connection(websocket):
 
-    print("Handling connection!")
+    print_server_message("Handling incoming websocket connection")
 
     # Wait for 5 seconds to receive registration message
     raw_message = await asyncio.wait_for(
@@ -39,28 +40,40 @@ async def handle_connection(websocket):
 
         # Check if this client is already connected
         if client_id in connected_clients:
+
+            reason = f"Client ID {client_id} already conected"
+
+            print_server_message(reason)
+
             await websocket.close(
                 code=1008,
-                reason="Client ID already connected",
+                reason=reason,
             )
             return
 
         # Validate role and expected client ID
         if role not in VALID_ROLES or CLIENT_IDS.get(role) != client_id:
+
+            reason = f"Invalid role ({role}) or client ID ({client_id})"
+
+            print_server_message(reason)
+
             await websocket.close(
                 code=1008,
-                reason="Invalid role or client ID",
+                reason=reason,
             )
             return
 
         # Register the client
         connected_clients[client_id] = websocket
-        print(f"Client {client_id} ({role}) connected")
+
+        success_message = f"Client {client_id} ({role}) connected"
+        print_server_message(success_message)
 
         # Inform client of successful registration
         response = RegistrationResponseMessage(
             success=True,
-            message="Registration successful",
+            message=success_message,
         )
 
         await websocket.send(response.to_json())
@@ -70,35 +83,44 @@ async def handle_connection(websocket):
             await process_message(client_id, raw)
 
     except asyncio.TimeoutError:
+
+        reason = "Registration timed out"
+
+        print_server_message(reason)
+
         await websocket.close(
             code=1008,
-            reason="Registration timed out",
+            reason=reason,
         )
 
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+
+        reason = f"Registration failed - {e}"
+        print_server_message(reason)
         await websocket.close(
             code=1008,
-            reason="Registration failed",
+            reason=reason,
         )
 
     except ConnectionClosed:
+        print_server_message("Conncetion closed")
         pass
 
     finally:
         # Only remove the connection owned by this handler
         if client_id is not None and connected_clients.get(client_id) is websocket:
             del connected_clients[client_id]
-            print(f"Client {client_id} disconnected")
+            print_server_message(f"Client {client_id} disconnected")
 
 
 async def process_message(client_id, raw):
     # TODO: Parse and route messages.
-    print(f"Message from {client_id}: {raw}")
+    print_server_message(f"Received message from {client_id}: {raw}")
 
 
 async def main():
     async with serve(handle_connection, "0.0.0.0", 8765) as server:
-        print("Server listening on port 8765")
+        print_server_message("Server listening on port 8765")
         await server.serve_forever()
 
 
