@@ -22,7 +22,7 @@
 
 // stack sizes are in bytes on the esp32 not words
 // sized off what stats_task measured plus room for the real sensor and motor code
-#define STACK_MOTOR   2048
+#define STACK_MOTOR   4096   // sscanf/snprintf for the motor commands need more than 2048
 #define STACK_TOF     3072
 #define STACK_IMU     3072
 #define STACK_REPLY   2048
@@ -48,3 +48,26 @@
 #define MSG_LEN       128      // longest message to or from the computer (imu json is ~70)
 
 #define NUM_TOF       4        // one wall sensor per side
+
+// motors on the L293D. left and right are swapped from the arduino encoder test
+// EN is the master on/off (low = both outputs off, motor coasts)
+// PWM goes on IN1/IN2: forward = PWM on IN2 with IN1 low, backward = the other way, both low = brake
+#define LEFT_EN       25   // L293D pin 1 (1,2EN), 12k pull down
+#define LEFT_IN1      26   // L293D pin 2 (1A)
+#define LEFT_IN2      27   // L293D pin 7 (2A)
+#define RIGHT_EN      23   // L293D pin 9 (3,4EN), 12k pull down
+#define RIGHT_IN1     19   // L293D pin 10 (3A)
+#define RIGHT_IN2     18   // L293D pin 15 (4A)
+#define MOTOR_PWM_HZ  300  // same as the arduino version, the L293D is slow so keep this low
+
+// motor encoders, same pins as the arduino encoder test
+#define LEFT_ENC_A    16
+#define LEFT_ENC_B    17
+#define RIGHT_ENC_A   32
+#define RIGHT_ENC_B   33
+#define LEFT_ENC_REVERSED  0   // set to 1 on a wheel whose count goes down when it turns forward
+#define RIGHT_ENC_REVERSED 1
+
+#define PRINT_ENC     0        // prints encoder counts to usb serial, set to 0 once its working
+#define SEND_ENC      1        // sends encoder counts to the server (shows up in console.py as "robot: enc ...")
+#define ENC_REPORT_HZ 5        // how often the counts get printed/sent
