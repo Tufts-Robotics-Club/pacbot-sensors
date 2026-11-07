@@ -49,15 +49,16 @@
 
 #define NUM_TOF       4        // one wall sensor per side
 
-// motors on the L293D, same pins as the arduino encoder test
-// PWM goes to the enable pin, DIR1/DIR2 set direction (forward = DIR1 low, DIR2 high)
-#define LEFT_PWM      23   // L293D pin 9 (3,4EN)
-#define LEFT_DIR1     19   // L293D pin 10 (3A)
-#define LEFT_DIR2     18   // L293D pin 15 (4A)
-#define RIGHT_PWM     25   // L293D pin 1 (1,2EN)
-#define RIGHT_DIR1    26   // L293D pin 2 (1A)
-#define RIGHT_DIR2    27   // L293D pin 7 (2A)
-#define MOTOR_PWM_HZ  300  // same as the arduino version so the tuning still matches
+// motors on the L293D. left and right are swapped from the arduino encoder test
+// EN is the master on/off (low = both outputs off, motor coasts)
+// PWM goes on IN1/IN2: forward = PWM on IN2 with IN1 low, backward = the other way, both low = brake
+#define LEFT_EN       25   // L293D pin 1 (1,2EN), 12k pull down
+#define LEFT_IN1      26   // L293D pin 2 (1A)
+#define LEFT_IN2      27   // L293D pin 7 (2A)
+#define RIGHT_EN      23   // L293D pin 9 (3,4EN), 12k pull down
+#define RIGHT_IN1     19   // L293D pin 10 (3A)
+#define RIGHT_IN2     18   // L293D pin 15 (4A)
+#define MOTOR_PWM_HZ  300  // same as the arduino version, the L293D is slow so keep this low
 
 // motor encoders, same pins as the arduino encoder test
 #define LEFT_ENC_A    16

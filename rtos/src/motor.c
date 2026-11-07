@@ -24,21 +24,42 @@ static QueueHandle_t cmd_mailbox;
 
 static TaskHandle_t motor_task_handle;
 
-// one PWM channel per motor, indexed by ENC_LEFT / ENC_RIGHT
-static const int pwm_pins[2]  = {LEFT_PWM, RIGHT_PWM};
-static const int dir1_pins[2] = {LEFT_DIR1, RIGHT_DIR1};
-static const int dir2_pins[2] = {LEFT_DIR2, RIGHT_DIR2};
-static const ledc_channel_t pwm_channels[2] = {LEDC_CHANNEL_0, LEDC_CHANNEL_1};
+// indexed by ENC_LEFT / ENC_RIGHT. two PWM channels per motor, one on each L293D input
+static const int in1_pins[2] = {LEFT_IN1, RIGHT_IN1};
+static const int in2_pins[2] = {LEFT_IN2, RIGHT_IN2};
+static const ledc_channel_t in1_channels[2] = {LEDC_CHANNEL_0, LEDC_CHANNEL_1};
+static const ledc_channel_t in2_channels[2] = {LEDC_CHANNEL_2, LEDC_CHANNEL_3};
 
 #define PWM_MAX 255   // 8 bit duty, same as the arduino version
 
+// master on/off for both motors. off = L293D outputs float so the motors coast
+static void motors_enable(bool on)
+{
+    gpio_set_level(LEFT_EN, on);
+    gpio_set_level(RIGHT_EN, on);
+}
+
+static void pwm_channel_start(int pin, ledc_channel_t channel)
+{
+    ledc_channel_config_t ch_cfg = {
+        .gpio_num = pin,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = channel,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 0,   // both inputs low = brake
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ch_cfg));
+}
+
 static void motor_pins_start(void)
 {
-    gpio_config_t dir_cfg = {
-        .pin_bit_mask = (1ULL << LEFT_DIR1) | (1ULL << LEFT_DIR2) | (1ULL << RIGHT_DIR1) | (1ULL << RIGHT_DIR2),
+    // EN starts low (the pull downs hold it there during boot too) until the PWM is set up
+    gpio_config_t en_cfg = {
+        .pin_bit_mask = (1ULL << LEFT_EN) | (1ULL << RIGHT_EN),
         .mode = GPIO_MODE_OUTPUT,
     };
-    ESP_ERROR_CHECK(gpio_config(&dir_cfg));
+    ESP_ERROR_CHECK(gpio_config(&en_cfg));
+    motors_enable(false);
 
     ledc_timer_config_t timer_cfg = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -50,30 +71,34 @@ static void motor_pins_start(void)
     ESP_ERROR_CHECK(ledc_timer_config(&timer_cfg));
 
     for (int i = 0; i < 2; i++) {
-        ledc_channel_config_t ch_cfg = {
-            .gpio_num = pwm_pins[i],
-            .speed_mode = LEDC_LOW_SPEED_MODE,
-            .channel = pwm_channels[i],
-            .timer_sel = LEDC_TIMER_0,
-            .duty = 0,   // start stopped
-        };
-        ESP_ERROR_CHECK(ledc_channel_config(&ch_cfg));
+        pwm_channel_start(in1_pins[i], in1_channels[i]);
+        pwm_channel_start(in2_pins[i], in2_channels[i]);
     }
+
+    motors_enable(true);
 }
 
-// signed duty in percent, -100..100. negative = backward, 0 = coast
+static void set_channel(ledc_channel_t channel, int percent)
+{
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, percent * PWM_MAX / 100);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
+}
+
+// signed duty in percent, -100..100. negative = backward, 0 = brake
+// the PWM goes on one input and the other stays low, so the off part of each cycle brakes instead of coasting
 static void set_motor(enc_side_t side, int duty)
 {
     if (duty > 100) duty = 100;
     if (duty < -100) duty = -100;
 
-    bool forward = duty >= 0;
-    gpio_set_level(dir1_pins[side], forward ? 0 : 1);
-    gpio_set_level(dir2_pins[side], forward ? 1 : 0);
-
-    int magnitude = forward ? duty : -duty;
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, pwm_channels[side], magnitude * PWM_MAX / 100);
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, pwm_channels[side]);
+    // drop the old side to 0 first so both inputs are never high at the same time
+    if (duty >= 0) {
+        set_channel(in1_channels[side], 0);
+        set_channel(in2_channels[side], duty);
+    } else {
+        set_channel(in2_channels[side], 0);
+        set_channel(in1_channels[side], -duty);
+    }
 }
 
 static void motors_stop(void)
@@ -83,8 +108,9 @@ static void motors_stop(void)
 }
 
 // commands from console.py, same as the arduino version. one number = both wheels, two = left right
-//   d <duty%>   open loop duty, -100..100
-//   s or 0      stop
+//   d <duty%>   open loop duty, -100..100 (turns the motors back on if x turned them off)
+//   s or 0      stop with the brake
+//   x           master off, EN low so the motors coast
 static void handle_command(const char *cmd)
 {
     char reply[MSG_LEN];
@@ -95,10 +121,15 @@ static void handle_command(const char *cmd)
     if (cmd[0] == 'd' && n >= 1) {
         set_motor(ENC_LEFT, left);
         set_motor(ENC_RIGHT, right);
+        motors_enable(true);
         snprintf(reply, sizeof(reply), "duty set to L=%d%% R=%d%%", left, right);
     } else if (cmd[0] == 's' || cmd[0] == '0') {
         motors_stop();
         snprintf(reply, sizeof(reply), "stopped");
+    } else if (cmd[0] == 'x') {
+        motors_stop();
+        motors_enable(false);
+        snprintf(reply, sizeof(reply), "motors off");
     } else {
         snprintf(reply, sizeof(reply), "unknown command: %.100s", cmd);
     }

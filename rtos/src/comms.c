@@ -105,6 +105,7 @@ static void ws_event_handler(void *arg, esp_event_base_t base, int32_t id, void 
 
     case WEBSOCKET_EVENT_DISCONNECTED:
         ESP_LOGW(TAG, "disconnected from server, trying again in %d ms", WS_RECONNECT_MS);
+        motor_command("x");   // turn the motors off so the robot doesnt keep driving with no one in control
         break;
 
     case WEBSOCKET_EVENT_DATA:
