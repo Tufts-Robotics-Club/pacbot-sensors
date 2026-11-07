@@ -2,7 +2,15 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include <secrets.h>
+
+#ifdef WOKWI_SIMULATION
+    #define WIFI_SSID "Wokwi-GUEST"
+    #define WIFI_PASSWORD ""
+    #define SERVER_IP "host.wokwi.internal"
+    #define SERVER_PORT 8765
+#else
+    #include <secrets.h>
+#endif
 
 WebSocketsClient webSocket;
 
@@ -17,7 +25,7 @@ void onWebSocketEvent(
 
             // Register this ESP32 as bot client ID "1".
             const char* registration =
-                R"({"type":"register","client_id":"1","role":"bot"})";
+                R"({"type":"registration","client_id":"1","role":"bot"})";
 
             webSocket.sendTXT(registration);
             Serial.println("Sent bot registration");

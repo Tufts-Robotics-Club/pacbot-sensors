@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from server.messages import RegistrationRequestMessage, RegistrationResponseMessage
+from messages import RegistrationRequestMessage, RegistrationResponseMessage
 
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
@@ -9,7 +9,7 @@ from websockets.exceptions import ConnectionClosed
 HOST = os.getenv("WS_HOST", "127.0.0.1")
 PORT = int(os.getenv("WS_PORT", "8765"))
 
-VALID_ROLES = ["bot", "cv"]
+from config import VALID_ROLES
 
 CLIENT_IDS = {"bot": "1", "cv": "2"}
 
@@ -18,6 +18,8 @@ connected_clients = {}
 
 
 async def handle_connection(websocket):
+
+    print("Handling connection!")
 
     # Wait for 5 seconds to receive registration message
     raw_message = await asyncio.wait_for(

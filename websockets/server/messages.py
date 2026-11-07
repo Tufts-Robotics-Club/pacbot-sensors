@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
-from bridge import VALID_ROLES
+from config import VALID_ROLES
 from abc import ABC, abstractmethod
 from typing import Self, ClassVar
 from dataclasses import asdict, dataclass
