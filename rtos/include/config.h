@@ -68,4 +68,6 @@
 #define LEFT_ENC_REVERSED  0   // set to 1 on a wheel whose count goes down when it turns forward
 #define RIGHT_ENC_REVERSED 1
 
-#define PRINT_ENC     1        // prints encoder counts 5 times a second, set to 0 once its working
+#define PRINT_ENC     0        // prints encoder counts to usb serial, set to 0 once its working
+#define SEND_ENC      1        // sends encoder counts to the server (shows up in console.py as "robot: enc ...")
+#define ENC_REPORT_HZ 5        // how often the counts get printed/sent

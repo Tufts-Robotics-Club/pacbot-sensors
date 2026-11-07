@@ -41,11 +41,11 @@ static void motors_enable(bool on)
 
 static void pwm_channel_start(int pin, ledc_channel_t channel)
 {
-    ledc_channel_config_t ch_cfg = {
-        .gpio_num = pin,
+    ledc_channel_config_t ch_cfg = { //settings for a pwm channel in a struct
+        .gpio_num = pin, //pin used for pwm
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .channel = channel,
-        .timer_sel = LEDC_TIMER_0,
+        .timer_sel = LEDC_TIMER_0, //attach channel to a timer
         .duty = 0,   // both inputs low = brake
     };
     ESP_ERROR_CHECK(ledc_channel_config(&ch_cfg));
@@ -171,14 +171,21 @@ static void motor_timer_start(void)
     ESP_ERROR_CHECK(gptimer_start(timer));
 }
 
-// prints the encoder counts 5 times a second while were testing them
+// prints and/or sends the encoder counts ENC_REPORT_HZ times a second while were testing them
 // its own low priority task on core 0 so printing never slows down motor_task
-static void enc_print_task(void *arg)
+static void enc_report_task(void *arg)
 {
     TickType_t last_wake = xTaskGetTickCount();
+    char msg[MSG_LEN];
     while (1) {
-        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(200));
-        printf("L: %ld  R: %ld\n", (long)encoder_count(ENC_LEFT), (long)encoder_count(ENC_RIGHT));
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(1000 / ENC_REPORT_HZ));
+        snprintf(msg, sizeof(msg), "enc L: %ld  R: %ld", (long)encoder_count(ENC_LEFT), (long)encoder_count(ENC_RIGHT));
+        if (PRINT_ENC) {
+            printf("%s\n", msg);
+        }
+        if (SEND_ENC) {
+            comms_send(msg);   // dropped if were not connected
+        }
     }
 }
 
@@ -187,8 +194,8 @@ static void motor_task(void *arg)
     // set up the encoders and timer here so their interrupts run on core 1 not the wifi core
     motor_pins_start();
     encoder_start();
-    if (PRINT_ENC) {
-        xTaskCreatePinnedToCore(enc_print_task, "enc_print", STACK_STATS, NULL, PRIO_STATS, NULL, COMMS_CORE);
+    if (PRINT_ENC || SEND_ENC) {
+        xTaskCreatePinnedToCore(enc_report_task, "enc_report", STACK_STATS, NULL, PRIO_STATS, NULL, COMMS_CORE);
     }
     motor_timer_start();
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
